@@ -87,7 +87,7 @@ export default function ChatPage() {
       } else if (data.type === "chat") {
         const message = data.payload;
         
-        if (message.encrypted && encryptionReady) {
+        if (message.encrypted) {
           try {
             const decryptedContent = await pqcrypto.decrypt(message.content);
             setMessages(prev => [...prev, { ...message, content: decryptedContent }]);
@@ -124,7 +124,7 @@ export default function ChatPage() {
     return () => {
       socket.close();
     };
-  }, []);
+  }, [localPublicKey]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
