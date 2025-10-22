@@ -6,14 +6,28 @@ export class PQCrypto {
   private kemKeyPair: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
   private dsaKeyPair: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
   private sharedSecret: Uint8Array | null = null;
+  private keyExchangeInProgress: boolean = false;
 
   async generateKEMKeyPair(): Promise<PQCKeyPair> {
+    if (this.kemKeyPair) {
+      console.log("🔑 Reusing existing KEM keypair");
+      return {
+        publicKey: this.arrayToHex(this.kemKeyPair.publicKey),
+        privateKey: this.arrayToHex(this.kemKeyPair.secretKey),
+        kemAlgorithm: 'ml-kem-768',
+        signatureAlgorithm: 'ml-dsa-65',
+        timestamp: Date.now(),
+      };
+    }
+    
+    console.log("🔑 Generating new KEM keypair");
     this.kemKeyPair = ml_kem768.keygen();
     
     return {
       publicKey: this.arrayToHex(this.kemKeyPair.publicKey),
       privateKey: this.arrayToHex(this.kemKeyPair.secretKey),
-      algorithm: 'ml-kem-768',
+      kemAlgorithm: 'ml-kem-768',
+      signatureAlgorithm: 'ml-dsa-65',
       timestamp: Date.now(),
     };
   }
@@ -24,36 +38,68 @@ export class PQCrypto {
     return {
       publicKey: this.arrayToHex(this.dsaKeyPair.publicKey),
       privateKey: this.arrayToHex(this.dsaKeyPair.secretKey),
-      algorithm: 'ml-dsa-65',
+      kemAlgorithm: 'ml-kem-768',
+      signatureAlgorithm: 'ml-dsa-65',
       timestamp: Date.now(),
     };
   }
 
   async encapsulate(peerPublicKey: string): Promise<{ ciphertext: string; sharedSecret: Uint8Array }> {
-    const publicKey = this.hexToArray(peerPublicKey);
-    const { cipherText, sharedSecret } = ml_kem768.encapsulate(publicKey);
-    this.sharedSecret = sharedSecret;
+    if (this.keyExchangeInProgress) {
+      throw new Error('Key exchange already in progress');
+    }
+    this.keyExchangeInProgress = true;
     
-    return {
-      ciphertext: this.arrayToHex(cipherText),
-      sharedSecret,
-    };
+    try {
+      const publicKey = this.hexToArray(peerPublicKey);
+      const { cipherText, sharedSecret } = ml_kem768.encapsulate(publicKey);
+      this.sharedSecret = sharedSecret;
+      
+      console.log("🔐 BOB: Encapsulation complete. Shared secret:", this.arrayToHex(sharedSecret));
+      
+      return {
+        ciphertext: this.arrayToHex(cipherText),
+        sharedSecret,
+      };
+    } finally {
+      this.keyExchangeInProgress = false;
+    }
   }
 
   async decapsulate(ciphertext: string): Promise<Uint8Array> {
     if (!this.kemKeyPair) {
+      console.error("❌ KEM keypair is null! Current state:", {
+        kemKeyPair: this.kemKeyPair,
+        sharedSecret: this.sharedSecret ? 'exists' : 'null'
+      });
       throw new Error('KEM keypair not generated');
     }
     
-    const ct = this.hexToArray(ciphertext);
-    this.sharedSecret = ml_kem768.decapsulate(ct, this.kemKeyPair.secretKey);
-    return this.sharedSecret;
+    if (this.keyExchangeInProgress) {
+      throw new Error('Key exchange already in progress');
+    }
+    this.keyExchangeInProgress = true;
+    
+    try {
+      console.log("🔓 ALICE: Using keypair with public key:", this.arrayToHex(this.kemKeyPair.publicKey).substring(0, 50) + "...");
+      
+      const ct = this.hexToArray(ciphertext);
+      this.sharedSecret = ml_kem768.decapsulate(ct, this.kemKeyPair.secretKey);
+      
+      console.log("🔓 ALICE: Decapsulation complete. Shared secret:", this.arrayToHex(this.sharedSecret));
+      
+      return this.sharedSecret;
+    } finally {
+      this.keyExchangeInProgress = false;
+    }
   }
 
   async encrypt(message: string): Promise<string> {
     if (!this.sharedSecret) {
       throw new Error('No shared secret established');
     }
+
+    console.log("🔒 Encrypting with shared secret:", this.arrayToHex(this.sharedSecret));
 
     const encoder = new TextEncoder();
     const data = encoder.encode(message);
@@ -84,6 +130,8 @@ export class PQCrypto {
     if (!this.sharedSecret) {
       throw new Error('No shared secret established');
     }
+
+    console.log("🔓 Decrypting with shared secret:", this.arrayToHex(this.sharedSecret));
 
     const combined = this.hexToArray(encryptedHex);
     const iv = combined.slice(0, 12);
@@ -135,6 +183,22 @@ export class PQCrypto {
       .join('');
     
     return hash.match(/.{1,4}/g)?.join(':') || '';
+  }
+
+  reset(): void {
+    console.log("🔄 Resetting PQC state");
+    this.kemKeyPair = null;
+    this.dsaKeyPair = null;
+    this.sharedSecret = null;
+    this.keyExchangeInProgress = false;
+  }
+
+  hasKeyPair(): boolean {
+    return this.kemKeyPair !== null;
+  }
+
+  hasSharedSecret(): boolean {
+    return this.sharedSecret !== null;
   }
 
   private arrayToHex(arr: Uint8Array): string {

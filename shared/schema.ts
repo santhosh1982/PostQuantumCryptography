@@ -21,7 +21,8 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export const pqcKeyPairSchema = z.object({
   publicKey: z.string(),
   privateKey: z.string(),
-  algorithm: z.enum(["ml-kem-768", "ml-dsa-65"]),
+  kemAlgorithm: z.enum(["ml-kem-512", "ml-kem-768", "ml-kem-1024", "kyber-512", "kyber-768", "kyber-1024"]),
+  signatureAlgorithm: z.enum(["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"]),
   timestamp: z.number(),
 });
 
@@ -47,7 +48,8 @@ export const wsMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("key-exchange"),
     payload: z.object({
       publicKey: z.string(),
-      algorithm: z.string(),
+      kemAlgorithm: z.string(),
+      signatureAlgorithm: z.string(),
       ciphertext: z.string().optional(),
     }),
   }),

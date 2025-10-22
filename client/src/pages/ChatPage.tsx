@@ -42,11 +42,23 @@ export default function ChatPage() {
       if (data.type === "connection") {
         setPeerId(data.payload.peerId);
       } else if (data.type === "key-exchange") {
+        // Prevent processing if already verified
+        if (keyStatus === "verified") {
+          console.log("⚠️ Ignoring key exchange - already verified");
+          return;
+        }
+        
         setPeerPublicKey(data.payload.publicKey);
         setKeyStatus("exchanging");
         
         try {
           if (data.payload.ciphertext) {
+            // This is Alice receiving Bob's response with ciphertext
+            console.log("👩 ALICE: Received ciphertext from Bob, decapsulating...");
+            console.log("👩 ALICE: Bob's public key:", data.payload.publicKey.substring(0, 50) + "...");
+            console.log("👩 ALICE: Ciphertext:", data.payload.ciphertext.substring(0, 50) + "...");
+            console.log("👩 ALICE: My keypair exists:", pqcrypto.hasKeyPair());
+            
             await pqcrypto.decapsulate(data.payload.ciphertext);
             setEncryptionReady(true);
             setKeyStatus("verified");
@@ -55,20 +67,35 @@ export default function ChatPage() {
               description: "End-to-end encryption is now active",
             });
           } else {
+            // This is Bob receiving Alice's initial public key
+            console.log("👨 BOB: Received Alice's public key, encapsulating...");
+            console.log("👨 BOB: Alice's public key:", data.payload.publicKey.substring(0, 50) + "...");
+            console.log("👨 BOB: My public key:", localPublicKey.substring(0, 50) + "...");
+            
+            // Generate Bob's keypair if he doesn't have one
+            if (!pqcrypto.hasKeyPair()) {
+              console.log("👨 BOB: Generating keypair...");
+              const keyPair = await pqcrypto.generateKEMKeyPair();
+              await pqcrypto.generateDSAKeyPair();
+              setLocalPublicKey(keyPair.publicKey);
+            }
+            
             const { ciphertext } = await pqcrypto.encapsulate(data.payload.publicKey);
             
             if (socket.readyState === WebSocket.OPEN) {
               const responseMsg: WSMessage = {
                 type: "key-exchange",
                 payload: {
-                  publicKey: localPublicKey,
-                  algorithm: "ml-kem-768",
+                  publicKey: localPublicKey || (await pqcrypto.generateKEMKeyPair()).publicKey,
+                  kemAlgorithm: "ml-kem-768",
+                  signatureAlgorithm: "ml-dsa-65",
                   ciphertext,
                 },
               };
               socket.send(JSON.stringify(responseMsg));
             }
             
+            // Bob should also set encryption ready since he has the shared secret
             setEncryptionReady(true);
             setKeyStatus("verified");
             toast({
@@ -89,10 +116,13 @@ export default function ChatPage() {
         
         if (message.encrypted) {
           try {
+            console.log("Attempting to decrypt message:", message.content.substring(0, 50) + "...");
             const decryptedContent = await pqcrypto.decrypt(message.content);
+            console.log("Decryption successful:", decryptedContent);
             setMessages(prev => [...prev, { ...message, content: decryptedContent }]);
           } catch (error) {
             console.error("Decryption failed:", error);
+            console.error("Message content:", message.content.substring(0, 100));
             setMessages(prev => [...prev, { ...message, content: "[Decryption failed]" }]);
           }
         } else {
@@ -124,28 +154,39 @@ export default function ChatPage() {
     return () => {
       socket.close();
     };
-  }, [localPublicKey]);
+  }, []); // Remove localPublicKey dependency to prevent reconnection
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleGenerateKeys = async () => {
+    if (keyStatus !== "idle") {
+      console.log("⚠️ Key generation already in progress or completed");
+      return;
+    }
+    
     setKeyStatus("generating");
     try {
+      // Reset any existing state
+      pqcrypto.reset();
+      
       const keyPair = await pqcrypto.generateKEMKeyPair();
       await pqcrypto.generateDSAKeyPair();
       setLocalPublicKey(keyPair.publicKey);
       
+      // Send key exchange message immediately after generating keys
       if (ws && ws.readyState === WebSocket.OPEN) {
         const keyExchangeMsg: WSMessage = {
           type: "key-exchange",
           payload: {
             publicKey: keyPair.publicKey,
-            algorithm: "ml-kem-768",
+            kemAlgorithm: "ml-kem-768",
+            signatureAlgorithm: "ml-dsa-65",
           },
         };
         ws.send(JSON.stringify(keyExchangeMsg));
+        console.log("👩 ALICE: Sent public key to Bob:", keyPair.publicKey.substring(0, 50) + "...");
       }
       
       toast({
@@ -187,8 +228,10 @@ export default function ChatPage() {
 
     if (encryptionReady && content) {
       try {
+        console.log("Encrypting message:", content);
         messageContent = await pqcrypto.encrypt(content);
         encrypted = true;
+        console.log("Encryption successful, encrypted content:", messageContent.substring(0, 50) + "...");
       } catch (error) {
         console.error("Encryption failed:", error);
         toast({
