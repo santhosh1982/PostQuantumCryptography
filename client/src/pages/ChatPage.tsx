@@ -8,6 +8,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import { pqcrypto } from "@/lib/pqc";
+import { useSettings } from "@/contexts/SettingsContext";
 import type { Message, WSMessage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +23,7 @@ export default function ChatPage() {
   const [encryptionReady, setEncryptionReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -75,8 +77,8 @@ export default function ChatPage() {
             // Generate Bob's keypair if he doesn't have one
             if (!pqcrypto.hasKeyPair()) {
               console.log("👨 BOB: Generating keypair...");
-              const keyPair = await pqcrypto.generateKEMKeyPair();
-              await pqcrypto.generateDSAKeyPair();
+              const keyPair = await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm);
+              await pqcrypto.generateDSAKeyPair(settings.signatureAlgorithm);
               setLocalPublicKey(keyPair.publicKey);
             }
             
@@ -86,9 +88,9 @@ export default function ChatPage() {
               const responseMsg: WSMessage = {
                 type: "key-exchange",
                 payload: {
-                  publicKey: localPublicKey || (await pqcrypto.generateKEMKeyPair()).publicKey,
-                  kemAlgorithm: "ml-kem-768",
-                  signatureAlgorithm: "ml-dsa-65",
+                  publicKey: localPublicKey || (await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm)).publicKey,
+                  kemAlgorithm: settings.kemAlgorithm,
+                  signatureAlgorithm: settings.signatureAlgorithm,
                   ciphertext,
                 },
               };
@@ -171,8 +173,8 @@ export default function ChatPage() {
       // Reset any existing state
       pqcrypto.reset();
       
-      const keyPair = await pqcrypto.generateKEMKeyPair();
-      await pqcrypto.generateDSAKeyPair();
+      const keyPair = await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm);
+      await pqcrypto.generateDSAKeyPair(settings.signatureAlgorithm);
       setLocalPublicKey(keyPair.publicKey);
       
       // Send key exchange message immediately after generating keys
@@ -181,8 +183,8 @@ export default function ChatPage() {
           type: "key-exchange",
           payload: {
             publicKey: keyPair.publicKey,
-            kemAlgorithm: "ml-kem-768",
-            signatureAlgorithm: "ml-dsa-65",
+            kemAlgorithm: settings.kemAlgorithm,
+            signatureAlgorithm: settings.signatureAlgorithm,
           },
         };
         ws.send(JSON.stringify(keyExchangeMsg));
@@ -191,7 +193,7 @@ export default function ChatPage() {
       
       toast({
         title: "Keys generated",
-        description: "PQC key pair created successfully",
+        description: `PQC key pair created with ${settings.kemAlgorithm.toUpperCase()}`,
       });
     } catch (error) {
       console.error("Key generation failed:", error);
@@ -285,10 +287,10 @@ export default function ChatPage() {
           <div className="flex items-center gap-2">
             <User className="h-5 w-5 text-muted-foreground" />
             <span className="font-medium">Peer Chat</span>
-            {encryptionReady && (
+            {encryptionReady && settings.showEncryptionIndicators && (
               <Badge variant="outline" className="gap-1 bg-success/10 text-success border-success/20" data-testid="badge-pqc-encrypted">
                 <Shield className="h-3 w-3" />
-                PQC Encrypted
+                PQC Encrypted ({settings.kemAlgorithm.toUpperCase()})
               </Badge>
             )}
           </div>
@@ -303,7 +305,7 @@ export default function ChatPage() {
       <div className="flex-1 overflow-hidden pt-16">
         <div className="flex h-full max-w-7xl mx-auto gap-6 p-6">
           <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto pb-24 space-y-2" data-testid="messages-container">
+            <div className={`flex-1 overflow-y-auto pb-24 ${settings.compactMessageView ? 'space-y-1' : 'space-y-2'}`} data-testid="messages-container">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-center">
                   <div className="space-y-3">

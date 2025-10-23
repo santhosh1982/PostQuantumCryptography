@@ -1,4 +1,4 @@
-import { Settings, Sun, Moon, Shield, Zap } from "lucide-react";
+import { Settings, Sun, Moon, Shield, Zap, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,11 +11,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTheme } from "./ThemeProvider";
+import { useSettings } from "@/contexts/SettingsContext";
 import { Badge } from "@/components/ui/badge";
 
 export function SettingsModal() {
   const { theme, setTheme } = useTheme();
+  const { settings, updateSetting, resetSettings } = useSettings();
 
   return (
     <Dialog>
@@ -26,10 +29,24 @@ export function SettingsModal() {
       </DialogTrigger>
       <DialogContent className="max-w-2xl" data-testid="modal-settings">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Settings</DialogTitle>
-          <DialogDescription>
-            Configure your PQC chat security and appearance preferences
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-2xl">Settings</DialogTitle>
+              <DialogDescription>
+                Configure your PQC chat security and appearance preferences
+              </DialogDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetSettings}
+              className="gap-2"
+              data-testid="button-reset-settings"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </Button>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="security" className="mt-4">
@@ -46,15 +63,47 @@ export function SettingsModal() {
                 <div className="flex-1">
                   <h3 className="font-medium mb-1">Post-Quantum Algorithms</h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Current encryption uses ML-KEM-768 for key encapsulation and ML-DSA-65 for digital signatures
+                    Configure the cryptographic algorithms used for encryption
                   </p>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                      ML-KEM-768
-                    </Badge>
-                    <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                      ML-DSA-65
-                    </Badge>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs font-medium">Key Encapsulation Mechanism</Label>
+                      <Select
+                        value={settings.kemAlgorithm}
+                        onValueChange={(value: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024") => 
+                          updateSetting("kemAlgorithm", value)
+                        }
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ml-kem-512">ML-KEM-512 (128-bit security)</SelectItem>
+                          <SelectItem value="ml-kem-768">ML-KEM-768 (192-bit security)</SelectItem>
+                          <SelectItem value="ml-kem-1024">ML-KEM-1024 (256-bit security)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs font-medium">Digital Signature Algorithm</Label>
+                      <Select
+                        value={settings.signatureAlgorithm}
+                        onValueChange={(value: "ml-dsa-44" | "ml-dsa-65" | "ml-dsa-87") => 
+                          updateSetting("signatureAlgorithm", value)
+                        }
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ml-dsa-44">ML-DSA-44 (128-bit security)</SelectItem>
+                          <SelectItem value="ml-dsa-65">ML-DSA-65 (192-bit security)</SelectItem>
+                          <SelectItem value="ml-dsa-87">ML-DSA-87 (256-bit security)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -66,7 +115,11 @@ export function SettingsModal() {
                     Automatically rotate encryption keys every 24 hours
                   </p>
                 </div>
-                <Switch defaultChecked data-testid="switch-auto-rotation" />
+                <Switch 
+                  checked={settings.autoKeyRotation}
+                  onCheckedChange={(checked) => updateSetting("autoKeyRotation", checked)}
+                  data-testid="switch-auto-rotation" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -76,7 +129,11 @@ export function SettingsModal() {
                     Generate new session keys for each conversation
                   </p>
                 </div>
-                <Switch defaultChecked data-testid="switch-forward-secrecy" />
+                <Switch 
+                  checked={settings.perfectForwardSecrecy}
+                  onCheckedChange={(checked) => updateSetting("perfectForwardSecrecy", checked)}
+                  data-testid="switch-forward-secrecy" 
+                />
               </div>
             </div>
           </TabsContent>
@@ -123,7 +180,11 @@ export function SettingsModal() {
                     Display PQC badges on encrypted messages
                   </p>
                 </div>
-                <Switch defaultChecked data-testid="switch-encryption-indicators" />
+                <Switch 
+                  checked={settings.showEncryptionIndicators}
+                  onCheckedChange={(checked) => updateSetting("showEncryptionIndicators", checked)}
+                  data-testid="switch-encryption-indicators" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -133,7 +194,11 @@ export function SettingsModal() {
                     Reduce spacing between messages
                   </p>
                 </div>
-                <Switch data-testid="switch-compact-view" />
+                <Switch 
+                  checked={settings.compactMessageView}
+                  onCheckedChange={(checked) => updateSetting("compactMessageView", checked)}
+                  data-testid="switch-compact-view" 
+                />
               </div>
             </div>
           </TabsContent>
@@ -154,17 +219,25 @@ export function SettingsModal() {
                     Automatically reconnect on connection loss
                   </p>
                 </div>
-                <Switch defaultChecked data-testid="switch-auto-reconnect" />
+                <Switch 
+                  checked={settings.autoReconnect}
+                  onCheckedChange={(checked) => updateSetting("autoReconnect", checked)}
+                  data-testid="switch-auto-reconnect" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="space-y-0.5">
                   <Label>Enable Message Signatures</Label>
                   <p className="text-sm text-muted-foreground">
-                    Sign all messages with ML-DSA-65 (increases latency)
+                    Sign all messages with {settings.signatureAlgorithm.toUpperCase()} (increases latency)
                   </p>
                 </div>
-                <Switch data-testid="switch-message-signatures" />
+                <Switch 
+                  checked={settings.enableMessageSignatures}
+                  onCheckedChange={(checked) => updateSetting("enableMessageSignatures", checked)}
+                  data-testid="switch-message-signatures" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -174,7 +247,11 @@ export function SettingsModal() {
                     Show technical details and connection logs
                   </p>
                 </div>
-                <Switch data-testid="switch-debug-mode" />
+                <Switch 
+                  checked={settings.debugMode}
+                  onCheckedChange={(checked) => updateSetting("debugMode", checked)}
+                  data-testid="switch-debug-mode" 
+                />
               </div>
             </div>
           </TabsContent>

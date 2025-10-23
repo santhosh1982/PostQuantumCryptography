@@ -1,5 +1,5 @@
-import { ml_kem768 } from '@noble/post-quantum/ml-kem.js';
-import { ml_dsa65 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_kem512, ml_kem768, ml_kem1024 } from '@noble/post-quantum/ml-kem.js';
+import { ml_dsa44, ml_dsa65, ml_dsa87 } from '@noble/post-quantum/ml-dsa.js';
 import type { PQCKeyPair } from '@shared/schema';
 
 export class PQCrypto {
@@ -7,39 +7,66 @@ export class PQCrypto {
   private dsaKeyPair: { publicKey: Uint8Array; secretKey: Uint8Array } | null = null;
   private sharedSecret: Uint8Array | null = null;
   private keyExchangeInProgress: boolean = false;
+  private currentKemAlgorithm: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024" = "ml-kem-768";
+  private currentSignatureAlgorithm: "ml-dsa-44" | "ml-dsa-65" | "ml-dsa-87" = "ml-dsa-65";
 
-  async generateKEMKeyPair(): Promise<PQCKeyPair> {
-    if (this.kemKeyPair) {
-      console.log("🔑 Reusing existing KEM keypair");
+  async generateKEMKeyPair(algorithm: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024" = "ml-kem-768"): Promise<PQCKeyPair> {
+    if (this.kemKeyPair && this.currentKemAlgorithm === algorithm) {
+      console.log("🔑 Reusing existing KEM keypair for", algorithm);
       return {
         publicKey: this.arrayToHex(this.kemKeyPair.publicKey),
         privateKey: this.arrayToHex(this.kemKeyPair.secretKey),
-        kemAlgorithm: 'ml-kem-768',
-        signatureAlgorithm: 'ml-dsa-65',
+        kemAlgorithm: algorithm,
+        signatureAlgorithm: this.currentSignatureAlgorithm,
         timestamp: Date.now(),
       };
     }
     
-    console.log("🔑 Generating new KEM keypair");
-    this.kemKeyPair = ml_kem768.keygen();
+    console.log("🔑 Generating new KEM keypair with", algorithm);
+    this.currentKemAlgorithm = algorithm;
+    
+    switch (algorithm) {
+      case "ml-kem-512":
+        this.kemKeyPair = ml_kem512.keygen();
+        break;
+      case "ml-kem-768":
+        this.kemKeyPair = ml_kem768.keygen();
+        break;
+      case "ml-kem-1024":
+        this.kemKeyPair = ml_kem1024.keygen();
+        break;
+    }
     
     return {
       publicKey: this.arrayToHex(this.kemKeyPair.publicKey),
       privateKey: this.arrayToHex(this.kemKeyPair.secretKey),
-      kemAlgorithm: 'ml-kem-768',
-      signatureAlgorithm: 'ml-dsa-65',
+      kemAlgorithm: algorithm,
+      signatureAlgorithm: this.currentSignatureAlgorithm,
       timestamp: Date.now(),
     };
   }
 
-  async generateDSAKeyPair(): Promise<PQCKeyPair> {
-    this.dsaKeyPair = ml_dsa65.keygen();
+  async generateDSAKeyPair(algorithm: "ml-dsa-44" | "ml-dsa-65" | "ml-dsa-87" = "ml-dsa-65"): Promise<PQCKeyPair> {
+    console.log("🔑 Generating DSA keypair with", algorithm);
+    this.currentSignatureAlgorithm = algorithm;
+    
+    switch (algorithm) {
+      case "ml-dsa-44":
+        this.dsaKeyPair = ml_dsa44.keygen();
+        break;
+      case "ml-dsa-65":
+        this.dsaKeyPair = ml_dsa65.keygen();
+        break;
+      case "ml-dsa-87":
+        this.dsaKeyPair = ml_dsa87.keygen();
+        break;
+    }
     
     return {
       publicKey: this.arrayToHex(this.dsaKeyPair.publicKey),
       privateKey: this.arrayToHex(this.dsaKeyPair.secretKey),
-      kemAlgorithm: 'ml-kem-768',
-      signatureAlgorithm: 'ml-dsa-65',
+      kemAlgorithm: this.currentKemAlgorithm,
+      signatureAlgorithm: algorithm,
       timestamp: Date.now(),
     };
   }
@@ -52,14 +79,27 @@ export class PQCrypto {
     
     try {
       const publicKey = this.hexToArray(peerPublicKey);
-      const { cipherText, sharedSecret } = ml_kem768.encapsulate(publicKey);
-      this.sharedSecret = sharedSecret;
+      let result;
       
-      console.log("🔐 BOB: Encapsulation complete. Shared secret:", this.arrayToHex(sharedSecret));
+      switch (this.currentKemAlgorithm) {
+        case "ml-kem-512":
+          result = ml_kem512.encapsulate(publicKey);
+          break;
+        case "ml-kem-768":
+          result = ml_kem768.encapsulate(publicKey);
+          break;
+        case "ml-kem-1024":
+          result = ml_kem1024.encapsulate(publicKey);
+          break;
+      }
+      
+      this.sharedSecret = result.sharedSecret;
+      
+      console.log("🔐 BOB: Encapsulation complete with", this.currentKemAlgorithm);
       
       return {
-        ciphertext: this.arrayToHex(cipherText),
-        sharedSecret,
+        ciphertext: this.arrayToHex(result.cipherText),
+        sharedSecret: result.sharedSecret,
       };
     } finally {
       this.keyExchangeInProgress = false;
@@ -84,9 +124,20 @@ export class PQCrypto {
       console.log("🔓 ALICE: Using keypair with public key:", this.arrayToHex(this.kemKeyPair.publicKey).substring(0, 50) + "...");
       
       const ct = this.hexToArray(ciphertext);
-      this.sharedSecret = ml_kem768.decapsulate(ct, this.kemKeyPair.secretKey);
       
-      console.log("🔓 ALICE: Decapsulation complete. Shared secret:", this.arrayToHex(this.sharedSecret));
+      switch (this.currentKemAlgorithm) {
+        case "ml-kem-512":
+          this.sharedSecret = ml_kem512.decapsulate(ct, this.kemKeyPair.secretKey);
+          break;
+        case "ml-kem-768":
+          this.sharedSecret = ml_kem768.decapsulate(ct, this.kemKeyPair.secretKey);
+          break;
+        case "ml-kem-1024":
+          this.sharedSecret = ml_kem1024.decapsulate(ct, this.kemKeyPair.secretKey);
+          break;
+      }
+      
+      console.log("🔓 ALICE: Decapsulation complete with", this.currentKemAlgorithm, "Shared secret:", this.arrayToHex(this.sharedSecret));
       
       return this.sharedSecret;
     } finally {
@@ -191,6 +242,8 @@ export class PQCrypto {
     this.dsaKeyPair = null;
     this.sharedSecret = null;
     this.keyExchangeInProgress = false;
+    this.currentKemAlgorithm = "ml-kem-768";
+    this.currentSignatureAlgorithm = "ml-dsa-65";
   }
 
   hasKeyPair(): boolean {
