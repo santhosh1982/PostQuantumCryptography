@@ -6,12 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import ChatPage from "@/pages/ChatPage";
+import BenchmarkPage from "@/pages/BenchmarkPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={ChatPage} />
+      <Route path="/benchmark" component={BenchmarkPage} />
       <Route component={NotFound} />
     </Switch>
   );

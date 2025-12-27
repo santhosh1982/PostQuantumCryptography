@@ -1,38 +1,40 @@
+
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { KemAlgorithm, SignatureAlgorithm } from "@/lib/crypto";
 
 export interface AppSettings {
   // Security settings
   autoKeyRotation: boolean;
   perfectForwardSecrecy: boolean;
-  
+
   // Appearance settings
   showEncryptionIndicators: boolean;
   compactMessageView: boolean;
-  
+
   // Advanced settings
   autoReconnect: boolean;
   enableMessageSignatures: boolean;
   debugMode: boolean;
-  
+
   // Crypto settings
-  kemAlgorithm: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024";
-  signatureAlgorithm: "ml-dsa-44" | "ml-dsa-65" | "ml-dsa-87";
+  kemAlgorithm: KemAlgorithm;
+  signatureAlgorithm: SignatureAlgorithm;
 }
 
 const defaultSettings: AppSettings = {
   // Security defaults
   autoKeyRotation: true,
   perfectForwardSecrecy: true,
-  
+
   // Appearance defaults
   showEncryptionIndicators: true,
   compactMessageView: false,
-  
+
   // Advanced defaults
   autoReconnect: true,
   enableMessageSignatures: false,
   debugMode: false,
-  
+
   // Crypto defaults
   kemAlgorithm: "ml-kem-768",
   signatureAlgorithm: "ml-dsa-65"

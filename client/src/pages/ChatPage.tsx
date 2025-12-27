@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { Shield, Wifi, WifiOff, User } from "lucide-react";
+import { Shield, Wifi, WifiOff, User, BarChart2 } from "lucide-react";
+import { Link } from "wouter";
 import { ChatMessage } from "@/components/ChatMessage";
 import { MessageInput } from "@/components/MessageInput";
+import { Button } from "@/components/ui/button";
 import { KeyExchangePanel } from "@/components/KeyExchangePanel";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { SettingsModal } from "@/components/SettingsModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
-import { pqcrypto } from "@/lib/pqc";
+import { cryptoEngine } from "@/lib/crypto";
 import { useSettings } from "@/contexts/SettingsContext";
 import type { Message, WSMessage } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -49,19 +51,19 @@ export default function ChatPage() {
           console.log("⚠️ Ignoring key exchange - already verified");
           return;
         }
-        
+
         setPeerPublicKey(data.payload.publicKey);
         setKeyStatus("exchanging");
-        
+
         try {
           if (data.payload.ciphertext) {
             // This is Alice receiving Bob's response with ciphertext
             console.log("👩 ALICE: Received ciphertext from Bob, decapsulating...");
             console.log("👩 ALICE: Bob's public key:", data.payload.publicKey.substring(0, 50) + "...");
             console.log("👩 ALICE: Ciphertext:", data.payload.ciphertext.substring(0, 50) + "...");
-            console.log("👩 ALICE: My keypair exists:", pqcrypto.hasKeyPair());
-            
-            await pqcrypto.decapsulate(data.payload.ciphertext);
+            console.log("👩 ALICE: My keypair exists:", cryptoEngine.hasKeyPair());
+
+            await cryptoEngine.decapsulate(data.payload.ciphertext);
             setEncryptionReady(true);
             setKeyStatus("verified");
             toast({
@@ -73,22 +75,22 @@ export default function ChatPage() {
             console.log("👨 BOB: Received Alice's public key, encapsulating...");
             console.log("👨 BOB: Alice's public key:", data.payload.publicKey.substring(0, 50) + "...");
             console.log("👨 BOB: My public key:", localPublicKey.substring(0, 50) + "...");
-            
+
             // Generate Bob's keypair if he doesn't have one
-            if (!pqcrypto.hasKeyPair()) {
+            if (!cryptoEngine.hasKeyPair()) {
               console.log("👨 BOB: Generating keypair...");
-              const keyPair = await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm);
-              await pqcrypto.generateDSAKeyPair(settings.signatureAlgorithm);
+              const keyPair = await cryptoEngine.generateKEMKeyPair(settings.kemAlgorithm);
+              await cryptoEngine.generateDSAKeyPair(settings.signatureAlgorithm);
               setLocalPublicKey(keyPair.publicKey);
             }
-            
-            const { ciphertext } = await pqcrypto.encapsulate(data.payload.publicKey);
-            
+
+            const { ciphertext } = await cryptoEngine.encapsulate(data.payload.publicKey, data.payload.kemAlgorithm as any);
+
             if (socket.readyState === WebSocket.OPEN) {
               const responseMsg: WSMessage = {
                 type: "key-exchange",
                 payload: {
-                  publicKey: localPublicKey || (await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm)).publicKey,
+                  publicKey: localPublicKey || (await cryptoEngine.generateKEMKeyPair(settings.kemAlgorithm)).publicKey,
                   kemAlgorithm: settings.kemAlgorithm,
                   signatureAlgorithm: settings.signatureAlgorithm,
                   ciphertext,
@@ -96,7 +98,7 @@ export default function ChatPage() {
               };
               socket.send(JSON.stringify(responseMsg));
             }
-            
+
             // Bob should also set encryption ready since he has the shared secret
             setEncryptionReady(true);
             setKeyStatus("verified");
@@ -115,11 +117,11 @@ export default function ChatPage() {
         }
       } else if (data.type === "chat") {
         const message = data.payload;
-        
+
         if (message.encrypted) {
           try {
             console.log("Attempting to decrypt message:", message.content.substring(0, 50) + "...");
-            const decryptedContent = await pqcrypto.decrypt(message.content);
+            const decryptedContent = await cryptoEngine.decrypt(message.content);
             console.log("Decryption successful:", decryptedContent);
             setMessages(prev => [...prev, { ...message, content: decryptedContent }]);
           } catch (error) {
@@ -167,16 +169,16 @@ export default function ChatPage() {
       console.log("⚠️ Key generation already in progress or completed");
       return;
     }
-    
+
     setKeyStatus("generating");
     try {
       // Reset any existing state
-      pqcrypto.reset();
-      
-      const keyPair = await pqcrypto.generateKEMKeyPair(settings.kemAlgorithm);
-      await pqcrypto.generateDSAKeyPair(settings.signatureAlgorithm);
+      cryptoEngine.reset();
+
+      const keyPair = await cryptoEngine.generateKEMKeyPair(settings.kemAlgorithm);
+      await cryptoEngine.generateDSAKeyPair(settings.signatureAlgorithm);
       setLocalPublicKey(keyPair.publicKey);
-      
+
       // Send key exchange message immediately after generating keys
       if (ws && ws.readyState === WebSocket.OPEN) {
         const keyExchangeMsg: WSMessage = {
@@ -190,7 +192,7 @@ export default function ChatPage() {
         ws.send(JSON.stringify(keyExchangeMsg));
         console.log("👩 ALICE: Sent public key to Bob:", keyPair.publicKey.substring(0, 50) + "...");
       }
-      
+
       toast({
         title: "Keys generated",
         description: `PQC key pair created with ${settings.kemAlgorithm.toUpperCase()}`,
@@ -231,7 +233,7 @@ export default function ChatPage() {
     if (encryptionReady && content) {
       try {
         console.log("Encrypting message:", content);
-        messageContent = await pqcrypto.encrypt(content);
+        messageContent = await cryptoEngine.encrypt(content);
         encrypted = true;
         console.log("Encryption successful, encrypted content:", messageContent.substring(0, 50) + "...");
       } catch (error) {
@@ -261,7 +263,7 @@ export default function ChatPage() {
     };
 
     ws.send(JSON.stringify(wsMessage));
-    
+
     const displayMessage = {
       ...message,
       content: content,
@@ -269,7 +271,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, displayMessage]);
   };
 
-  const keyFingerprint = localPublicKey ? pqcrypto.getKeyFingerprint(localPublicKey) : undefined;
+  const keyFingerprint = localPublicKey ? cryptoEngine.getKeyFingerprint(localPublicKey) : undefined;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -296,6 +298,11 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link href="/benchmark">
+              <Button variant="ghost" size="icon" title="Crypto Benchmark">
+                <BarChart2 className="h-5 w-5" />
+              </Button>
+            </Link>
             <ThemeToggle />
             <SettingsModal />
           </div>
@@ -312,8 +319,8 @@ export default function ChatPage() {
                     <Shield className="h-12 w-12 text-muted-foreground mx-auto" />
                     <h3 className="text-lg font-medium text-muted-foreground">No messages yet</h3>
                     <p className="text-sm text-muted-foreground max-w-sm">
-                      {encryptionReady 
-                        ? "Start sending encrypted messages with post-quantum cryptography" 
+                      {encryptionReady
+                        ? "Start sending encrypted messages with post-quantum cryptography"
                         : "Generate keys to enable end-to-end encryption"}
                     </p>
                   </div>

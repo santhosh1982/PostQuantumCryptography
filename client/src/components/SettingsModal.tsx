@@ -65,13 +65,13 @@ export function SettingsModal() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Configure the cryptographic algorithms used for encryption
                   </p>
-                  
+
                   <div className="space-y-3">
                     <div>
                       <Label className="text-xs font-medium">Key Encapsulation Mechanism</Label>
                       <Select
                         value={settings.kemAlgorithm}
-                        onValueChange={(value: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024") => 
+                        onValueChange={(value: "ml-kem-512" | "ml-kem-768" | "ml-kem-1024") =>
                           updateSetting("kemAlgorithm", value)
                         }
                       >
@@ -82,15 +82,22 @@ export function SettingsModal() {
                           <SelectItem value="ml-kem-512">ML-KEM-512 (128-bit security)</SelectItem>
                           <SelectItem value="ml-kem-768">ML-KEM-768 (192-bit security)</SelectItem>
                           <SelectItem value="ml-kem-1024">ML-KEM-1024 (256-bit security)</SelectItem>
+                          <SelectItem value="kyber-512">Kyber-512 (Legacy)</SelectItem>
+                          <SelectItem value="kyber-768">Kyber-768 (Legacy)</SelectItem>
+                          <SelectItem value="kyber-1024">Kyber-1024 (Legacy)</SelectItem>
+                          <SelectItem value="rsa-2048">RSA-2048 (Classic 112-bit)</SelectItem>
+                          <SelectItem value="rsa-4096">RSA-4096 (Classic 128-bit)</SelectItem>
+                          <SelectItem value="ecdh-p256">ECDH P-256 (Classic 128-bit)</SelectItem>
+                          <SelectItem value="ecdh-p384">ECDH P-384 (Classic 192-bit)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div>
                       <Label className="text-xs font-medium">Digital Signature Algorithm</Label>
                       <Select
                         value={settings.signatureAlgorithm}
-                        onValueChange={(value: "ml-dsa-44" | "ml-dsa-65" | "ml-dsa-87") => 
+                        onValueChange={(value: any) =>
                           updateSetting("signatureAlgorithm", value)
                         }
                       >
@@ -101,6 +108,10 @@ export function SettingsModal() {
                           <SelectItem value="ml-dsa-44">ML-DSA-44 (128-bit security)</SelectItem>
                           <SelectItem value="ml-dsa-65">ML-DSA-65 (192-bit security)</SelectItem>
                           <SelectItem value="ml-dsa-87">ML-DSA-87 (256-bit security)</SelectItem>
+                          <SelectItem value="rsa-pss-2048">RSA-PSS-2048 (Classic)</SelectItem>
+                          <SelectItem value="rsa-pss-4096">RSA-PSS-4096 (Classic)</SelectItem>
+                          <SelectItem value="ecdsa-p256">ECDSA P-256 (Classic)</SelectItem>
+                          <SelectItem value="ecdsa-p384">ECDSA P-384 (Classic)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -115,10 +126,10 @@ export function SettingsModal() {
                     Automatically rotate encryption keys every 24 hours
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.autoKeyRotation}
                   onCheckedChange={(checked) => updateSetting("autoKeyRotation", checked)}
-                  data-testid="switch-auto-rotation" 
+                  data-testid="switch-auto-rotation"
                 />
               </div>
 
@@ -129,10 +140,10 @@ export function SettingsModal() {
                     Generate new session keys for each conversation
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.perfectForwardSecrecy}
                   onCheckedChange={(checked) => updateSetting("perfectForwardSecrecy", checked)}
-                  data-testid="switch-forward-secrecy" 
+                  data-testid="switch-forward-secrecy"
                 />
               </div>
             </div>
@@ -180,10 +191,10 @@ export function SettingsModal() {
                     Display PQC badges on encrypted messages
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.showEncryptionIndicators}
                   onCheckedChange={(checked) => updateSetting("showEncryptionIndicators", checked)}
-                  data-testid="switch-encryption-indicators" 
+                  data-testid="switch-encryption-indicators"
                 />
               </div>
 
@@ -194,10 +205,10 @@ export function SettingsModal() {
                     Reduce spacing between messages
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.compactMessageView}
                   onCheckedChange={(checked) => updateSetting("compactMessageView", checked)}
-                  data-testid="switch-compact-view" 
+                  data-testid="switch-compact-view"
                 />
               </div>
             </div>
@@ -219,10 +230,10 @@ export function SettingsModal() {
                     Automatically reconnect on connection loss
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.autoReconnect}
                   onCheckedChange={(checked) => updateSetting("autoReconnect", checked)}
-                  data-testid="switch-auto-reconnect" 
+                  data-testid="switch-auto-reconnect"
                 />
               </div>
 
@@ -233,10 +244,10 @@ export function SettingsModal() {
                     Sign all messages with {settings.signatureAlgorithm.toUpperCase()} (increases latency)
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.enableMessageSignatures}
                   onCheckedChange={(checked) => updateSetting("enableMessageSignatures", checked)}
-                  data-testid="switch-message-signatures" 
+                  data-testid="switch-message-signatures"
                 />
               </div>
 
@@ -247,10 +258,10 @@ export function SettingsModal() {
                     Show technical details and connection logs
                   </p>
                 </div>
-                <Switch 
+                <Switch
                   checked={settings.debugMode}
                   onCheckedChange={(checked) => updateSetting("debugMode", checked)}
-                  data-testid="switch-debug-mode" 
+                  data-testid="switch-debug-mode"
                 />
               </div>
             </div>

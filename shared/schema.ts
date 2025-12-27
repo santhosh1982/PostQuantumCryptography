@@ -21,8 +21,17 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export const pqcKeyPairSchema = z.object({
   publicKey: z.string(),
   privateKey: z.string(),
-  kemAlgorithm: z.enum(["ml-kem-512", "ml-kem-768", "ml-kem-1024", "kyber-512", "kyber-768", "kyber-1024"]),
-  signatureAlgorithm: z.enum(["ml-dsa-44", "ml-dsa-65", "ml-dsa-87"]),
+  kemAlgorithm: z.enum([
+    "ml-kem-512", "ml-kem-768", "ml-kem-1024", 
+    "kyber-512", "kyber-768", "kyber-1024",
+    "rsa-2048", "rsa-4096",
+    "ecdh-p256", "ecdh-p384"
+  ]),
+  signatureAlgorithm: z.enum([
+    "ml-dsa-44", "ml-dsa-65", "ml-dsa-87",
+    "rsa-pss-2048", "rsa-pss-4096", 
+    "ecdsa-p256", "ecdsa-p384"
+  ]),
   timestamp: z.number(),
 });
 
